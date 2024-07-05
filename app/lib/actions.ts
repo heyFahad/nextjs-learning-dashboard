@@ -7,19 +7,47 @@ import { redirect } from 'next/navigation';
 
 const InvoiceSchema = z.object({
   id: z.string(),
-  customerId: z.string(),
-  amount: z.coerce.number(),
+  customerId: z.string({ message: 'Please select a customer' }),
+  amount: z.coerce
+    .number()
+    .gt(0, { message: 'Please enter an amount greater than 0' }),
   date: z.string(),
-  status: z.enum(['pending', 'paid']),
+  status: z.enum(['pending', 'paid'], {
+    message: 'Please select an invoice status',
+  }),
 });
 
 const CreateInvoiceSchema = InvoiceSchema.omit({ id: true, date: true });
 const UpdateInvoiceSchema = InvoiceSchema.omit({ id: true, date: true });
 
-export async function createInvoice(formData: FormData) {
-  const rawFormData = Object.fromEntries(formData.entries());
-  const { customerId, amount, status } = CreateInvoiceSchema.parse(rawFormData);
+export type State = {
+  errors?: {
+    customerId?: string[];
+    amount?: string[];
+    status?: string[];
+  };
+  message?: string | null;
+};
 
+export async function createInvoice(
+  prevState: State,
+  formData: FormData,
+): Promise<State> {
+  // validate form fields using Zod
+  const rawFormData = Object.fromEntries(formData.entries());
+  const parsedFormData = CreateInvoiceSchema.safeParse(rawFormData);
+  console.log({ parsedFormData: JSON.stringify(parsedFormData) });
+
+  // If form validation fails, return errors early. Otherwise, continue.
+  if (!parsedFormData.success) {
+    return {
+      errors: parsedFormData.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Create Invoice.',
+    };
+  }
+
+  // Prepare data for insertion into the database
+  const { customerId, amount, status } = parsedFormData.data;
   const amountInCents = amount * 100; // amounts are usually stored in cents in the db to avoid the floating point anomalies of the data
   const date = new Date().toISOString().split('T')[0]; // this will return the date in YYYY-MM-DD format
 
