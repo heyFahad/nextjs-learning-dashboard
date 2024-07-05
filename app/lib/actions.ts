@@ -68,12 +68,26 @@ export async function createInvoice(
   redirect('/dashboard/invoices');
 }
 
-export async function updateInvoice(id: string, formData: FormData) {
+export async function updateInvoice(
+  id: string,
+  prevState: State,
+  formData: FormData,
+): Promise<State> {
+  // validate the incoming form data using Zod
   const rawFormData = Object.fromEntries(formData.entries());
-  const { customerId, amount, status } = UpdateInvoiceSchema.parse(rawFormData);
+  const parsedFormData = UpdateInvoiceSchema.safeParse(rawFormData);
 
-  // again, convert the amount in cents to avoid floating point errors
-  const amountInCents = amount * 100;
+  // if validation fails, return early with the errors. Proceed otherwise
+  if (!parsedFormData.success) {
+    return {
+      errors: parsedFormData.error.flatten().fieldErrors,
+      message: 'Missing Fields. Failed to Update Invoice',
+    };
+  }
+
+  // Prepare data to be updated in the database
+  const { customerId, amount, status } = parsedFormData.data;
+  const amountInCents = amount * 100; // again, convert the amount in cents to avoid floating point errors
 
   // update the invoice data in the database
   try {
